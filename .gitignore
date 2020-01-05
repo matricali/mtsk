@@ -1,0 +1,4 @@
+mtsk
+*.o
+build/
+obj/
