@@ -28,6 +28,8 @@
 #include "md5.h"
 #include "socket.h"
 
+#define BUF_SIZE 1024
+
 unsigned char pkt_login[] = { 0x06, 0x2f, 0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x00 };
 unsigned char pkt_login_rpl_1[] = { 0x05, 0x21, 0x64, 0x6f, 0x6e, 0x65, 0x25 };
 unsigned char pkt_login_rpl_2[] = { 0x3d, 0x72, 0x65, 0x74, 0x3d };
@@ -36,22 +38,25 @@ unsigned char pkt_done[] = { 0x05, 0x21, 0x64, 0x6f, 0x6e, 0x65, 0x00 };
 int mtsk_routeros_command_login(int sockfd, const char *username,
 				const char *password)
 {
-	char buf[1024] = { 0 };
+	char buf[BUF_SIZE] = { 0 };
 	unsigned char bdata[16] = { 0 };
 	unsigned char digest[16];
 	int nbytes = 0;
 
 	mtsk_socket_write(sockfd, &pkt_login, 8);
-	nbytes = mtsk_socket_read(sockfd, &buf, 1024);
+	nbytes = mtsk_socket_read(sockfd, &buf, BUF_SIZE);
 
 	if (nbytes < 45)
 		return -1;
 
-	if (strncmp((const char *)pkt_login_rpl_1, buf, 7) != 0)
+	if (nbytes > BUF_SIZE)
 		return -2;
 
-	if (strncmp((const char *)pkt_login_rpl_2, &buf[7], 5) != 0)
+	if (strncmp((const char *)pkt_login_rpl_1, buf, 7) != 0)
 		return -3;
+
+	if (strncmp((const char *)pkt_login_rpl_2, &buf[7], 5) != 0)
+		return -4;
 
 	hex_to_bin(&buf[12], 32, bdata);
 
@@ -80,13 +85,17 @@ int mtsk_routeros_command_login(int sockfd, const char *username,
 
 	mtsk_socket_write(sockfd, &pkt, final_len);
 
-	nbytes = mtsk_socket_read(sockfd, &buf, 1024);
+	memset(buf, 0, BUF_SIZE);
+	nbytes = mtsk_socket_read(sockfd, &buf, BUF_SIZE);
 
 	if (nbytes < 7)
-		return -4;
+		return -5;
+
+	if (nbytes > BUF_SIZE)
+		return -2;
 
 	if (strncmp((const char *)pkt_done, buf, 7) != 0)
-		return -5;
+		return -6;
 
 	return 0;
 }
