@@ -4,7 +4,7 @@ CFLAGS	+= -Wall -g -std=gnu99 -O2 -Iinclude
 LDFLAGS	+=
 
 NAME	= mtsk
-SRCS	:= mtsk.c socket.c md5.c hex.c
+SRCS	:= mtsk.c socket.c md5.c hex.c stringlist.c
 OBJS	:= $(SRCS:%.c=obj/%.o)
 
 all: dirs $(NAME)

