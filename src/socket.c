@@ -27,12 +27,16 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#ifdef DEBUG_RAW_PACKETS
 #include "hex.h"
+#endif
 
 void mtsk_socket_write(int sockfd, const void *src, size_t len)
 {
+#ifdef DEBUG_RAW_PACKETS
 	printf("Sending %zu bytes...\n", len);
 	hex_dump(src, len);
+#endif
 	send(sockfd, src, len, 0);
 }
 
@@ -45,8 +49,10 @@ ssize_t mtsk_socket_read(int sockfd, void *dst, size_t len)
 		return ret;
 	}
 
+#ifdef DEBUG_RAW_PACKETS
 	printf("Received %zu bytes...\n", ret);
 	hex_dump(dst, ret);
+#endif
 
 	return ret;
 }
