@@ -39,8 +39,15 @@ void mtsk_socket_write(int sockfd, const void *src, size_t len)
 ssize_t mtsk_socket_read(int sockfd, void *dst, size_t len)
 {
 	ssize_t ret = recv(sockfd, dst, len, 0);
+
+	if (ret < 0) {
+		perror("recv");
+		return ret;
+	}
+
 	printf("Received %zu bytes...\n", ret);
 	hex_dump(dst, ret);
+
 	return ret;
 }
 
