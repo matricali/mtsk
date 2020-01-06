@@ -61,6 +61,7 @@ int mtsk_socket_connect(uint32_t ip, uint16_t port, uint32_t timeout)
 {
 	struct sockaddr_in addr;
 	int sockfd, ret;
+	fd_set fdset;
 
 	sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -69,6 +70,8 @@ int mtsk_socket_connect(uint32_t ip, uint16_t port, uint32_t timeout)
 		return -1;
 	}
 
+	fcntl(sockfd, F_SETFL, O_NONBLOCK);
+
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
@@ -76,11 +79,43 @@ int mtsk_socket_connect(uint32_t ip, uint16_t port, uint32_t timeout)
 
 	ret = connect(sockfd, (struct sockaddr *)&addr, sizeof(addr));
 
-	if (ret < 0) {
-		perror("connect");
-		return -1;
+	FD_ZERO(&fdset);
+	FD_SET(sockfd, &fdset);
+
+	/* Connection timeout */
+	struct timeval tv;
+	tv.tv_sec = 0;
+	tv.tv_usec = timeout;
+
+	if (select(sockfd + 1, NULL, &fdset, NULL, &tv) == 1) {
+		int so_error;
+		socklen_t len = sizeof so_error;
+
+		getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+		if (so_error != 0) {
+			close(sockfd);
+			sockfd = 0;
+			return -1; // Connection refused
+		}
+	} else {
+		close(sockfd);
+		sockfd = 0;
+		return -2; // Connection timeout
 	}
 
-	puts("Connected...");
+	/* Set to blocking mode again... */
+	if ((ret = fcntl(sockfd, F_GETFL, NULL)) < 0) {
+		close(sockfd);
+		sockfd = 0;
+		return -3; // EFCNTL;
+	}
+	long arg = 0;
+	arg &= (~O_NONBLOCK);
+	if ((ret = fcntl(sockfd, F_SETFL, arg)) < 0) {
+		close(sockfd);
+		sockfd = 0;
+		return -4; // EFCNTL
+	}
+
 	return sockfd;
 }
