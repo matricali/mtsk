@@ -17,6 +17,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -143,16 +144,66 @@ void worker(void *args)
 	}
 }
 
-int main(int argc, char **argv)
+static void mtsk_banner()
 {
 	puts("mtsk - MikroTik RouterOS API bruteforce v0.1");
 	puts("https://github.com/matricali/mtsk");
 	puts("");
+}
 
+static void mtsk_usage(char *name)
+{
+	printf("usage: %s [-vh] [-p PORT]\n"
+	       "\t-v, --version\tPrint software version.\n"
+	       "\t-h, --help\tPrint this help.\n"
+	       "\t-p, --port\tTarget port (default 8728)\n",
+	       name);
+	puts("");
+}
+
+int main(int argc, char **argv)
+{
+	int opt;
+	int option_index = 0;
 	uint16_t port = 8728;
 	char *username = "admin";
 	stringslist_t *passwords = NULL;
 	threadpool_t *tp = NULL;
+
+	static struct option long_options[] = {
+		{ "version", no_argument, 0, 'v' },
+		{ "help", no_argument, 0, 'h' },
+		{ "port", required_argument, 0, 'p' },
+		{ 0, 0, 0, 0 }
+	};
+
+	while ((opt = getopt_long(argc, argv, "vhp:", long_options,
+				  &option_index)) != -1) {
+		switch (opt) {
+			case 'v':
+				mtsk_banner();
+				exit(EXIT_SUCCESS);
+				break;
+
+			case 'h':
+				mtsk_banner();
+				mtsk_usage(argv[0]);
+				exit(EXIT_SUCCESS);
+				break;
+
+			case 'p':
+				port = atoi(optarg);
+				break;
+
+			case '?':
+				/* getopt_long already printed an error message. */
+				exit(EXIT_FAILURE);
+				break;
+
+			default:
+				abort();
+		}
+	}
 
 	/* Init worker threads */
 	tp = threadpool_create(24);
