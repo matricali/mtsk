@@ -112,7 +112,7 @@ int mtsk_routeros_command_login(int sockfd, const char *username,
 
 void worker(void *args)
 {
-	mtsk_worker_args_t *wargs = (char *)args;
+	mtsk_worker_args_t *wargs = (mtsk_worker_args_t *)args;
 	printf("Worker %d - %s:%d\n", getpid(), wargs->target, wargs->port);
 
 	for (int i = 0; i < wargs->passwords->size; ++i) {
