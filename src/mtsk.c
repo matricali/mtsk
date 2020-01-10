@@ -216,18 +216,31 @@ int main(int argc, char **argv)
 	}
 	printf("Loaded %d passwords.\n", passwords->size);
 
-	/* Load targets */
-	char line[BUFSIZ] = { 0 };
-	char *tmp = NULL;
-
-	while ((tmp = fgets(line, BUFSIZ, stdin)) != NULL) {
-		line[strcspn(line, "\n")] = 0;
+	/* Load targets from command line */
+	while (optind < argc) {
 		mtsk_worker_args_t wargs = { 0 };
-		wargs.target = line;
+		wargs.target = argv[optind];
 		wargs.port = port;
 		wargs.username = username;
 		wargs.passwords = passwords;
 		threadpool_add_work(tp, &worker, &wargs);
+		optind++;
+	}
+
+	if (!isatty(fileno(stdin))) {
+		/* Load targets from STDIN */
+		char line[BUFSIZ] = { 0 };
+		char *tmp = NULL;
+
+		while ((tmp = fgets(line, BUFSIZ, stdin)) != NULL) {
+			line[strcspn(line, "\n")] = 0;
+			mtsk_worker_args_t wargs = { 0 };
+			wargs.target = line;
+			wargs.port = port;
+			wargs.username = username;
+			wargs.passwords = passwords;
+			threadpool_add_work(tp, &worker, &wargs);
+		}
 	}
 
 	threadpool_wait(tp);
