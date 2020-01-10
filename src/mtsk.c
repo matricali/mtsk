@@ -27,8 +27,8 @@
 #include "hex.h"
 #include "md5.h"
 #include "socket.h"
-#include "stringlist.h"
 
+#include "stringslist/stringslist.h"
 #include "threadpool/threadpool.h"
 
 #define BUF_SIZE 1024
@@ -37,7 +37,7 @@ typedef struct {
 	char *target;
 	uint16_t port;
 	char *username;
-	stringlist_t *passwords;
+	stringslist_t *passwords;
 } mtsk_worker_args_t;
 
 unsigned char pkt_login[] = { 0x06, 0x2f, 0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x00 };
@@ -152,14 +152,14 @@ int main(int argc, char **argv)
 	char *target = NULL;
 	uint16_t port = 8728;
 	char *username = "admin";
-	stringlist_t *passwords = NULL;
+	stringslist_t *passwords = NULL;
 	threadpool_t *tp = NULL;
 
 	/* Init worker threads */
 	tp = threadpool_create(24);
 
 	/* Load passwords */
-	passwords = stringlist_load_file("passwords.txt");
+	passwords = stringslist_load_file("passwords.txt");
 	if (passwords == NULL) {
 		fprintf(stderr, "Unable to load passworsd dictionary.\n");
 		exit(EXIT_FAILURE);

@@ -1,3 +1,6 @@
 [submodule "threadpool"]
 	path = threadpool
 	url = https://github.com/matricali/threadpool.git
+[submodule "stringslist"]
+	path = stringslist
+	url = https://github.com/matricali/stringslist.git

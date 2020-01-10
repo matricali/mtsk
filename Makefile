@@ -4,7 +4,7 @@ CFLAGS	+= -Wall -g -std=gnu99 -O2 -Iinclude -I.
 LDFLAGS	+=
 
 NAME	= mtsk
-SRCS	:= mtsk.c socket.c md5.c hex.c stringlist.c ../threadpool/threadpool.c
+SRCS	:= mtsk.c socket.c md5.c hex.c ../stringslist/stringslist.c ../threadpool/threadpool.c
 OBJS	:= $(SRCS:%.c=obj/%.o)
 
 all: dirs $(NAME)
