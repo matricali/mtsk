@@ -149,7 +149,6 @@ int main(int argc, char **argv)
 	puts("https://github.com/matricali/mtsk");
 	puts("");
 
-	char *target = NULL;
 	uint16_t port = 8728;
 	char *username = "admin";
 	stringslist_t *passwords = NULL;
@@ -168,13 +167,13 @@ int main(int argc, char **argv)
 
 	/* Load targets */
 	char line[BUFSIZ] = { 0 };
-	size_t len;
+	char *tmp = NULL;
 
-	while ((len = fgets(line, sizeof line, stdin)) > 0) {
+	while ((tmp = fgets(line, BUFSIZ, stdin)) != NULL) {
 		line[strcspn(line, "\n")] = 0;
 		mtsk_worker_args_t wargs = { 0 };
 		wargs.target = line;
-		wargs.port = 8728;
+		wargs.port = port;
 		wargs.username = username;
 		wargs.passwords = passwords;
 		threadpool_add_work(tp, &worker, &wargs);
