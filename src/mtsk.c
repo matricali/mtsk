@@ -153,10 +153,11 @@ static void mtsk_banner()
 
 static void mtsk_usage(char *name)
 {
-	printf("usage: %s [-vh] [-p PORT]\n"
+	printf("usage: %s [-vh] [-p PORT] [-u USERNAME]\n"
 	       "\t-v, --version\tPrint software version.\n"
 	       "\t-h, --help\tPrint this help.\n"
-	       "\t-p, --port\tTarget port (default 8728)\n",
+	       "\t-p, --port\tTarget port (default: 8728)\n"
+	       "\t-u, --username\tUsername (default: admin)\n",
 	       name);
 	puts("");
 }
@@ -174,10 +175,11 @@ int main(int argc, char **argv)
 		{ "version", no_argument, 0, 'v' },
 		{ "help", no_argument, 0, 'h' },
 		{ "port", required_argument, 0, 'p' },
+		{ "username", required_argument, 0, 'u' },
 		{ 0, 0, 0, 0 }
 	};
 
-	while ((opt = getopt_long(argc, argv, "vhp:", long_options,
+	while ((opt = getopt_long(argc, argv, "vhp:u:", long_options,
 				  &option_index)) != -1) {
 		switch (opt) {
 			case 'v':
@@ -193,6 +195,10 @@ int main(int argc, char **argv)
 
 			case 'p':
 				port = atoi(optarg);
+				break;
+
+			case 'u':
+				username = strdup(optarg);
 				break;
 
 			case '?':
