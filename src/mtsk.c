@@ -144,6 +144,25 @@ void worker(void *args)
 	}
 }
 
+void mtsk_worker_add(threadpool_t *tp, char *target, uint16_t port,
+		     char *username, stringslist_t *passwords)
+{
+	mtsk_worker_args_t *wargs = malloc(sizeof(mtsk_worker_args_t));
+
+	if (wargs == NULL) {
+		perror("malloc");
+		exit(EXIT_FAILURE);
+	}
+
+	wargs->target = target;
+	wargs->port = port;
+	wargs->username = username;
+	wargs->passwords = passwords;
+	wargs->connect_timeout = 500000;
+
+	threadpool_add_work(tp, &worker, wargs);
+}
+
 static void mtsk_banner()
 {
 	puts("mtsk - MikroTik RouterOS API bruteforce v0.1");
@@ -224,12 +243,8 @@ int main(int argc, char **argv)
 
 	/* Load targets from command line */
 	while (optind < argc) {
-		mtsk_worker_args_t wargs = { 0 };
-		wargs.target = argv[optind];
-		wargs.port = port;
-		wargs.username = username;
-		wargs.passwords = passwords;
-		threadpool_add_work(tp, &worker, &wargs);
+		mtsk_worker_add(tp, strdup(argv[optind]), port,
+				strdup(username), passwords);
 		optind++;
 	}
 
@@ -240,12 +255,8 @@ int main(int argc, char **argv)
 
 		while ((tmp = fgets(line, BUFSIZ, stdin)) != NULL) {
 			line[strcspn(line, "\n")] = 0;
-			mtsk_worker_args_t wargs = { 0 };
-			wargs.target = line;
-			wargs.port = port;
-			wargs.username = username;
-			wargs.passwords = passwords;
-			threadpool_add_work(tp, &worker, &wargs);
+			mtsk_worker_add(tp, strdup(line), port,
+					strdup(username), passwords);
 		}
 	}
 
