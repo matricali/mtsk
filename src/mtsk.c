@@ -39,6 +39,7 @@ typedef struct {
 	uint16_t port;
 	char *username;
 	stringslist_t *passwords;
+	uint32_t connect_timeout;
 } mtsk_worker_args_t;
 
 unsigned char pkt_login[] = { 0x06, 0x2f, 0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x00 };
@@ -118,7 +119,8 @@ void worker(void *args)
 
 	for (int i = 0; i < wargs->passwords->size; ++i) {
 		int sockfd = mtsk_socket_connect(inet_addr(wargs->target),
-						 wargs->port, 500000);
+						 wargs->port,
+						 wargs->connect_timeout);
 
 		if (sockfd > 0) {
 			char *password = wargs->passwords->elements[i];
@@ -145,7 +147,8 @@ void worker(void *args)
 }
 
 void mtsk_worker_add(threadpool_t *tp, char *target, uint16_t port,
-		     char *username, stringslist_t *passwords)
+		     char *username, stringslist_t *passwords,
+		     uint32_t connect_timeout)
 {
 	mtsk_worker_args_t *wargs = malloc(sizeof(mtsk_worker_args_t));
 
@@ -158,7 +161,7 @@ void mtsk_worker_add(threadpool_t *tp, char *target, uint16_t port,
 	wargs->port = port;
 	wargs->username = username;
 	wargs->passwords = passwords;
-	wargs->connect_timeout = 500000;
+	wargs->connect_timeout = connect_timeout;
 
 	threadpool_add_work(tp, &worker, wargs);
 }
@@ -189,6 +192,7 @@ int main(int argc, char **argv)
 	char *username = "admin";
 	stringslist_t *passwords = NULL;
 	threadpool_t *tp = NULL;
+	uint32_t connect_timeout = 500000;
 
 	static struct option long_options[] = {
 		{ "version", no_argument, 0, 'v' },
@@ -244,7 +248,7 @@ int main(int argc, char **argv)
 	/* Load targets from command line */
 	while (optind < argc) {
 		mtsk_worker_add(tp, strdup(argv[optind]), port,
-				strdup(username), passwords);
+				strdup(username), passwords, connect_timeout);
 		optind++;
 	}
 
@@ -256,7 +260,8 @@ int main(int argc, char **argv)
 		while ((tmp = fgets(line, BUFSIZ, stdin)) != NULL) {
 			line[strcspn(line, "\n")] = 0;
 			mtsk_worker_add(tp, strdup(line), port,
-					strdup(username), passwords);
+					strdup(username), passwords,
+					connect_timeout);
 		}
 	}
 
