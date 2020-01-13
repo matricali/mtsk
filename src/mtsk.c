@@ -115,15 +115,15 @@ int mtsk_routeros_command_login(int sockfd, const char *username,
 void worker(void *args)
 {
 	mtsk_worker_args_t *wargs = (mtsk_worker_args_t *)args;
-	printf("Worker %d - %s:%d\n", getpid(), wargs->target, wargs->port);
+	stringslist_t *passwords = wargs->passwords;
 
-	for (int i = 0; i < wargs->passwords->size; ++i) {
+	for (int i = 0; i < passwords->size; ++i) {
 		int sockfd = mtsk_socket_connect(inet_addr(wargs->target),
 						 wargs->port,
 						 wargs->connect_timeout);
 
 		if (sockfd > 0) {
-			char *password = wargs->passwords->elements[i];
+			char *password = passwords->elements[i];
 			if (strcmp(password, "\n") == 0) {
 				password[0] = '\0';
 			}
@@ -179,7 +179,8 @@ static void mtsk_usage(char *name)
 	       "\t-v, --version\tPrint software version.\n"
 	       "\t-h, --help\tPrint this help.\n"
 	       "\t-p, --port\tTarget port (default: 8728)\n"
-	       "\t-u, --username\tUsername (default: admin)\n",
+	       "\t-u, --username\tUsername (default: admin)\n"
+	       "\t-t, --threads\tMax threads (default: 1)\n",
 	       name);
 	puts("");
 }
@@ -193,16 +194,19 @@ int main(int argc, char **argv)
 	stringslist_t *passwords = NULL;
 	threadpool_t *tp = NULL;
 	uint32_t connect_timeout = 500000;
+	int tempint;
+	size_t max_threads = 1;
 
 	static struct option long_options[] = {
 		{ "version", no_argument, 0, 'v' },
 		{ "help", no_argument, 0, 'h' },
 		{ "port", required_argument, 0, 'p' },
 		{ "username", required_argument, 0, 'u' },
+		{ "threads", required_argument, 0, 't' },
 		{ 0, 0, 0, 0 }
 	};
 
-	while ((opt = getopt_long(argc, argv, "vhp:u:", long_options,
+	while ((opt = getopt_long(argc, argv, "vhp:t:u:", long_options,
 				  &option_index)) != -1) {
 		switch (opt) {
 			case 'v':
@@ -220,6 +224,17 @@ int main(int argc, char **argv)
 				port = atoi(optarg);
 				break;
 
+			case 't':
+				tempint = atoi(optarg);
+				if (tempint <= 0) {
+					fprintf(stderr,
+						"Invalid number of threads. (%s)\n",
+						optarg);
+					exit(EXIT_FAILURE);
+				}
+				max_threads = tempint;
+				break;
+
 			case 'u':
 				username = strdup(optarg);
 				break;
@@ -235,7 +250,7 @@ int main(int argc, char **argv)
 	}
 
 	/* Init worker threads */
-	tp = threadpool_create(24);
+	tp = threadpool_create(max_threads);
 
 	/* Load passwords */
 	passwords = stringslist_load_file("passwords.txt");
