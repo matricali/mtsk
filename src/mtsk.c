@@ -40,6 +40,7 @@ typedef struct {
 	char *username;
 	stringslist_t *passwords;
 	uint32_t connect_timeout;
+	FILE *logfile_fp;
 } mtsk_worker_args_t;
 
 unsigned char pkt_login[] = { 0x06, 0x2f, 0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x00 };
@@ -127,19 +128,26 @@ void worker(void *args)
 			if (strcmp(password, "\n") == 0) {
 				password[0] = '\0';
 			}
+
 			int ret = mtsk_routeros_command_login(
 				sockfd, wargs->username, password);
+
 			if (ret == 0) {
 				printf("%s:%d \"%s\" \"%s\" - OK\n",
 				       wargs->target, wargs->port,
 				       wargs->username, password);
 				close(sockfd);
+				if (wargs->logfile_fp != NULL)
+					fprintf(wargs->logfile_fp,
+						"\"%s:%d\",\"%s\",\"%s\"\n",
+						wargs->target, wargs->port,
+						wargs->username, password);
 				return;
-			} else {
-				fprintf(stderr, "%s:%d \"%s\" \"%s\" - FAIL\n",
-					wargs->target, wargs->port,
-					wargs->username, password);
 			}
+
+			fprintf(stderr, "%s:%d \"%s\" \"%s\" - FAIL\n",
+				wargs->target, wargs->port, wargs->username,
+				password);
 		}
 		if (sockfd > 0)
 			close(sockfd);
@@ -148,7 +156,7 @@ void worker(void *args)
 
 void mtsk_worker_add(threadpool_t *tp, char *target, uint16_t port,
 		     char *username, stringslist_t *passwords,
-		     uint32_t connect_timeout)
+		     uint32_t connect_timeout, FILE *logfile_fp)
 {
 	mtsk_worker_args_t *wargs = malloc(sizeof(mtsk_worker_args_t));
 
@@ -162,6 +170,7 @@ void mtsk_worker_add(threadpool_t *tp, char *target, uint16_t port,
 	wargs->username = username;
 	wargs->passwords = passwords;
 	wargs->connect_timeout = connect_timeout;
+	wargs->logfile_fp = logfile_fp;
 
 	threadpool_add_work(tp, &worker, wargs);
 }
@@ -175,12 +184,13 @@ static void mtsk_banner()
 
 static void mtsk_usage(char *name)
 {
-	printf("usage: %s [-vh] [-p PORT] [-u USERNAME]\n"
-	       "\t-v, --version\tPrint software version.\n"
-	       "\t-h, --help\tPrint this help.\n"
-	       "\t-p, --port\tTarget port (default: 8728)\n"
-	       "\t-u, --username\tUsername (default: admin)\n"
-	       "\t-t, --threads\tMax threads (default: 1)\n",
+	printf("usage: %s [-vh] [-o OUTPUT] [-p PORT] [-u USERNAME] [-t THREADS] ...\n"
+	       "\t-h, --help\t\tPrint this help.\n"
+	       "\t-o, --output\t\tOutput logfile.\n"
+	       "\t-p, --port\t\tTarget port (default: 8728)\n"
+	       "\t-u, --username\t\tUsername (default: admin)\n"
+	       "\t-t, --threads\t\tMax threads (default: 1)\n"
+	       "\t-v, --version\t\tPrint software version.\n",
 	       name);
 	puts("");
 }
@@ -196,6 +206,8 @@ int main(int argc, char **argv)
 	uint32_t connect_timeout = 500000;
 	int tempint;
 	size_t max_threads = 1;
+	FILE *logfile_fp = NULL;
+	char *logfile_path = NULL;
 
 	static struct option long_options[] = {
 		{ "version", no_argument, 0, 'v' },
@@ -206,9 +218,13 @@ int main(int argc, char **argv)
 		{ 0, 0, 0, 0 }
 	};
 
-	while ((opt = getopt_long(argc, argv, "vhp:t:u:", long_options,
+	while ((opt = getopt_long(argc, argv, "vho:p:t:u:", long_options,
 				  &option_index)) != -1) {
 		switch (opt) {
+			case 'o':
+				logfile_path = strdup(optarg);
+				break;
+
 			case 'v':
 				mtsk_banner();
 				exit(EXIT_SUCCESS);
@@ -255,15 +271,25 @@ int main(int argc, char **argv)
 	/* Load passwords */
 	passwords = stringslist_load_file("passwords.txt");
 	if (passwords == NULL) {
-		fprintf(stderr, "Unable to load passworsd dictionary.\n");
+		fprintf(stderr, "Unable to load the password dictionary.\n");
 		exit(EXIT_FAILURE);
 	}
 	printf("Loaded %d passwords.\n", passwords->size);
 
+	/* Open logfile */
+	if (logfile_path != NULL) {
+		logfile_fp = fopen(logfile_path, "a");
+		if (logfile_fp == NULL) {
+			fprintf(stderr, "Error opening output file. (%s)",
+				logfile_path);
+			exit(EXIT_FAILURE);
+		}
+	}
+
 	/* Load targets from command line */
 	while (optind < argc) {
 		mtsk_worker_add(tp, strdup(argv[optind]), port,
-				strdup(username), passwords, connect_timeout);
+				strdup(username), passwords, connect_timeout, logfile_fp);
 		optind++;
 	}
 
@@ -276,12 +302,15 @@ int main(int argc, char **argv)
 			line[strcspn(line, "\n")] = 0;
 			mtsk_worker_add(tp, strdup(line), port,
 					strdup(username), passwords,
-					connect_timeout);
+					connect_timeout, logfile_fp);
 		}
 	}
 
 	threadpool_wait(tp);
 	threadpool_destroy(tp);
+
+	if (logfile_fp != NULL)
+		fclose(logfile_fp);
 
 	return EXIT_SUCCESS;
 }
